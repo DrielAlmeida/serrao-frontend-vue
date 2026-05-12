@@ -37,6 +37,17 @@
                   placeholder="12.345.678 ou Nome do cliente"
                   class="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
                 />
+                <ul v-if="openCustomerSuggestions && filteredCustomers.length" class="mt-2 max-h-72 overflow-auto rounded-3xl border border-slate-200 bg-white shadow-sm">
+                  <li
+                    v-for="customer in filteredCustomers"
+                    :key="customer.number"
+                    @mousedown.prevent="selectCustomer(customer)"
+                    class="cursor-pointer border-b border-slate-200 px-4 py-3 transition hover:bg-emerald-50"
+                  >
+                    <p class="font-semibold text-slate-900">{{ customer.name }}</p>
+                    <p class="text-sm text-slate-500">{{ customer.number }}</p>
+                  </li>
+                </ul>
               </div>
               <button
                 @click="searchCustomer"
@@ -207,7 +218,8 @@ const { getItems, getCustomers, getOrders, saveOrders, generateOrderId } = useLo
 
 const customerSearch = ref('')
 const customerName = ref('')
-const openSuggestions = ref(false)
+const selectedCustomerNumber = ref('')
+const openCustomerSuggestions = ref(false)
 const itemSearchText = ref('')
 const quantity = ref(1)
 const cartItems = ref([])
@@ -258,8 +270,25 @@ const filteredItems = computed(() => {
   })
 })
 
+const filteredCustomers = computed(() => {
+  const term = customerSearch.value.trim().toLowerCase()
+  if (!term) return []
+
+  const digitTerm = term.replace(/\D/g, '')
+  return customers.value.filter((customer) => {
+    const normalizedNumber = customer.number.replace(/\D/g, '')
+    const matchesNumber = digitTerm.length > 0 && normalizedNumber.includes(digitTerm)
+    const matchesName = customer.name.toLowerCase().includes(term)
+    return matchesNumber || matchesName
+  })
+})
+
 const onCustomerSearchInput = () => {
   const value = customerSearch.value
+  openCustomerSuggestions.value = true
+  customerName.value = ''
+  selectedCustomerNumber.value = ''
+
   if (/[A-Za-zÀ-ÿ]/.test(value)) {
     return
   }
@@ -275,10 +304,24 @@ const searchCustomer = () => {
       customer.name.toLowerCase().includes(term)
     )
   })
-  customerName.value = found ? found.name : ''
-  if (!found && clean.length > 0) {
+
+  if (found) {
+    customerName.value = found.name
+    selectedCustomerNumber.value = found.number
+  } else {
     customerName.value = ''
+    selectedCustomerNumber.value = ''
   }
+
+  openCustomerSuggestions.value = false
+}
+
+const selectCustomer = (customer) => {
+  customerSearch.value = customer.name
+  customerName.value = customer.name
+  selectedCustomerNumber.value = customer.number
+  openCustomerSuggestions.value = false
+  nextTick(() => itemCodeInput.value?.focus())
 }
 
 const selectItem = (item) => {
@@ -325,7 +368,7 @@ const finalizeOrder = () => {
 
   const order = {
     id: editingOrderId.value || generateOrderId(),
-    customerNumber: customerSearch.value.trim(),
+    customerNumber: selectedCustomerNumber.value || customerSearch.value.trim(),
     customerName: customerName.value,
     items: [...cartItems.value],
     subtotal: cartSubtotal.value,

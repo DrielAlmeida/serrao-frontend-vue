@@ -5,7 +5,7 @@
         <div class="flex items-center gap-3">
           <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-700 text-lg font-bold text-white">B</div>
           <div>
-            <p class="text-base font-semibold text-emerald-900">Bridge</p>
+            <p class="text-base font-semibold text-emerald-900">Serrão</p>
             <p class="text-xs uppercase tracking-[0.3em] text-emerald-700">Painel</p>
           </div>
         </div>
@@ -25,7 +25,7 @@
         <div class="flex items-center gap-3">
           <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-700 text-lg font-bold text-white">B</div>
           <div>
-            <p class="text-base font-semibold text-emerald-900">Bridge</p>
+            <p class="text-base font-semibold text-emerald-900">Serrão</p>
             <p class="text-xs uppercase tracking-[0.3em] text-emerald-700">Painel</p>
           </div>
         </div>
@@ -67,7 +67,7 @@
         >
           <div class="flex items-center justify-between pb-4 border-b border-slate-200">
             <div>
-              <p class="text-base font-semibold text-emerald-900">Bridge</p>
+              <p class="text-base font-semibold text-emerald-900">Serrão Alimentos</p>
               <p class="text-xs uppercase tracking-[0.3em] text-emerald-700">Menu</p>
             </div>
             <button class="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 text-slate-600 hover:bg-slate-100" @click="closeMenu" type="button">✕</button>
