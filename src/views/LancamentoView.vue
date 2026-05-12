@@ -106,17 +106,33 @@
                 <p class="text-sm text-slate-600">Preço: {{ formatCurrency(selectedItem.price) }} / {{ selectedItem.unit }}</p>
               </div>
 
-              <div v-if="selectedItem" class="grid gap-4 sm:grid-cols-[1fr_auto]">
+              <div v-if="selectedItem" class="grid gap-4 sm:grid-cols-[1.2fr_auto]">
                 <label class="block">
                   <span class="mb-2 block text-sm font-medium text-slate-700">Quantidade</span>
-                  <input
-                    v-model.number="quantity"
-                    @keydown.enter.prevent="handleQuantityEnter"
-                    ref="quantityInput"
-                    type="number"
-                    min="1"
-                    class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-200"
-                  />
+                  <div class="mt-2 flex items-center gap-2">
+                    <button
+                      type="button"
+                      @click="decreaseQuantity"
+                      class="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-300 bg-slate-100 text-xl font-semibold text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      -
+                    </button>
+                    <input
+                      v-model.number="quantity"
+                      @keydown.enter.prevent="handleQuantityEnter"
+                      ref="quantityInput"
+                      type="number"
+                      min="1"
+                      class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-200"
+                    />
+                    <button
+                      type="button"
+                      @click="increaseQuantity"
+                      class="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-300 bg-slate-100 text-xl font-semibold text-slate-700 transition hover:bg-slate-200"
+                    >
+                      +
+                    </button>
+                  </div>
                 </label>
                 <button
                   @click="addItemToCart"
@@ -393,6 +409,14 @@ const finalizeOrder = () => {
   customerSearch.value = ''
   customerName.value = ''
   editingOrderId.value = null
+}
+
+const increaseQuantity = () => {
+  quantity.value = Math.max(1, quantity.value + 1)
+}
+
+const decreaseQuantity = () => {
+  quantity.value = Math.max(1, quantity.value - 1)
 }
 
 const handleQuantityEnter = () => {
