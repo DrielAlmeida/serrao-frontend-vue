@@ -29,9 +29,10 @@
                 <p class="text-sm text-slate-600">Número do pedido: {{ group.id }}</p>
                 <p class="text-sm text-slate-600">Data: {{ new Date(group.date).toLocaleString('pt-BR') }}</p>
               </div>
-              <div class="flex gap-2">
+              <div class="flex flex-wrap gap-2">
                 <button @click="editOrder(group)" class="inline-flex h-12 items-center justify-center rounded-2xl bg-blue-600 px-4 text-sm font-semibold text-white hover:bg-blue-700">Editar</button>
                 <button @click="deleteOrder(group.id)" class="inline-flex h-12 items-center justify-center rounded-2xl bg-red-600 px-4 text-sm font-semibold text-white hover:bg-red-700">Excluir</button>
+                <button @click="printOrder(group)" class="inline-flex h-12 items-center justify-center rounded-2xl bg-slate-700 px-4 text-sm font-semibold text-white hover:bg-slate-800">Imprimir / PDF</button>
                 <button class="inline-flex h-12 items-center justify-center rounded-2xl bg-orange-600 px-5 text-sm font-semibold text-white hover:bg-orange-700">Finalizar liberação</button>
               </div>
             </div>
@@ -40,6 +41,7 @@
               <article v-for="item in group.items" :key="item.code" class="rounded-3xl border border-slate-200 bg-emerald-50 p-4">
                 <p class="font-semibold text-slate-900">{{ item.name }}</p>
                 <p class="mt-1 text-sm text-slate-600">{{ item.quantity }} x {{ item.unit }} • {{ formatCurrency(item.price) }}</p>
+                <p v-if="item.observation" class="mt-2 rounded-2xl bg-white/90 px-3 py-2 text-sm text-slate-700">Observação: {{ item.observation }}</p>
               </article>
             </div>
           </div>
@@ -102,6 +104,115 @@ const deleteOrder = (orderId) => {
   if (confirm('Tem certeza que deseja excluir este lançamento?')) {
     releases.value = releases.value.filter(order => order.id !== orderId)
     saveOrders(releases.value)
+  }
+}
+
+const printOrder = (order) => {
+  const orderItemsHtml = order.items.map((item) => {
+    const observation = item.observation ? item.observation : '-'
+    const itemTotal = formatCurrency(item.price * item.quantity)
+    return `
+      <tr>
+        <td class="border px-4 py-3">${item.code}</td>
+        <td class="border px-4 py-3">${item.name}</td>
+        <td class="border px-4 py-3 text-center">${item.quantity}</td>
+        <td class="border px-4 py-3 text-center">${item.unit}</td>
+        <td class="border px-4 py-3 text-right">${formatCurrency(item.price)}</td>
+        <td class="border px-4 py-3">${observation}</td>
+        <td class="border px-4 py-3 text-right">${itemTotal}</td>
+      </tr>
+    `
+  }).join('')
+
+  const html = `
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+      <head>
+        <meta charset="UTF-8" />
+        <title>Pedido ${order.id}</title>
+        <style>
+          body { font-family: Arial, sans-serif; color: #1f2937; margin: 0; padding: 24px; }
+          .page { max-width: 900px; margin: auto; }
+          .header { border-bottom: 1px solid #d1d5db; margin-bottom: 24px; padding-bottom: 16px; }
+          .title { font-size: 28px; font-weight: 700; margin: 0 0 8px; }
+          .subtitle { color: #4b5563; margin: 0; }
+          .section { margin-bottom: 24px; }
+          .section-title { font-size: 16px; font-weight: 700; margin-bottom: 12px; }
+          .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+          .box { padding: 16px; border: 1px solid #d1d5db; border-radius: 16px; background: #f8fafc; }
+          table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+          th, td { border: 1px solid #d1d5db; padding: 12px; text-align: left; vertical-align: top; }
+          th { background: #f1f5f9; font-weight: 700; }
+          .text-right { text-align: right; }
+          .total-row td { font-weight: 700; }
+          .footer { margin-top: 32px; color: #4b5563; font-size: 13px; }
+        </style>
+      </head>
+      <body>
+        <div class="page">
+          <div class="header">
+            <p class="title">Pedido ${order.id}</p>
+            <p class="subtitle">Data: ${new Date(order.date).toLocaleString('pt-BR')}</p>
+          </div>
+
+          <div class="section grid">
+            <div class="box">
+              <p class="section-title">Cliente</p>
+              <p><strong>Nome:</strong> ${order.customerName}</p>
+              <p><strong>Número:</strong> ${order.customerNumber}</p>
+            </div>
+            <div class="box">
+              <p class="section-title">Resumo</p>
+              <p><strong>Total de itens:</strong> ${order.items.reduce((sum, item) => sum + item.quantity, 0)}</p>
+              <p><strong>Valor total:</strong> ${formatCurrency(order.items.reduce((sum, item) => sum + item.price * item.quantity, 0))}</p>
+            </div>
+          </div>
+
+          <div class="section">
+            <p class="section-title">Itens do pedido</p>
+            <table>
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Item</th>
+                  <th>Qtde</th>
+                  <th>Unid.</th>
+                  <th>Preço unit.</th>
+                  <th>Observação</th>
+                  <th class="text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${orderItemsHtml}
+                <tr class="total-row">
+                  <td colspan="6" class="text-right">Total geral</td>
+                  <td class="text-right">${formatCurrency(order.items.reduce((sum, item) => sum + item.price * item.quantity, 0))}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="footer">
+            <p>Pedido gerado a partir do sistema Bridge Serrao.</p>
+          </div>
+        </div>
+      </body>
+    </html>
+  `
+
+  const blob = new Blob([html], { type: 'text/html' })
+  const url = URL.createObjectURL(blob)
+  const printWindow = window.open(url, '_blank')
+
+  if (printWindow) {
+    printWindow.focus()
+    printWindow.onload = () => {
+      printWindow.print()
+      URL.revokeObjectURL(url)
+    }
+  } else {
+    URL.revokeObjectURL(url)
+    alert('Não foi possível abrir a nova janela para impressão. Verifique se o bloqueador de pop-ups está ativo.')
   }
 }
 

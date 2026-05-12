@@ -134,6 +134,18 @@
                     </button>
                   </div>
                 </label>
+
+                <label class="block">
+                  <span class="mb-2 block text-sm font-medium text-slate-700">Observação</span>
+                  <textarea
+                    v-model="observation"
+                    ref="observationInput"
+                    rows="3"
+                    placeholder="Anote observações do cliente para este item"
+                    class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-200"
+                  />
+                </label>
+
                 <button
                   @click="addItemToCart"
                   :disabled="!canAddItem"
@@ -169,6 +181,7 @@
                 <div>
                   <p class="font-semibold text-slate-900">{{ item.code }} — {{ item.name }}</p>
                   <p class="mt-1 text-sm text-slate-600">{{ item.quantity }} x {{ formatCurrency(item.price) }} / {{ item.unit }}</p>
+                  <p v-if="item.observation" class="mt-2 rounded-2xl bg-white/90 px-3 py-2 text-sm text-slate-700">Observação: {{ item.observation }}</p>
                 </div>
                 <div class="mt-4 flex items-center gap-3 sm:mt-0">
                   <p class="text-lg font-semibold text-emerald-900">{{ formatCurrency(item.price * item.quantity) }}</p>
@@ -238,12 +251,14 @@ const selectedCustomerNumber = ref('')
 const openCustomerSuggestions = ref(false)
 const itemSearchText = ref('')
 const quantity = ref(1)
+const observation = ref('')
 const cartItems = ref([])
 const selectedItem = ref(null)
 
 const customerNumberInput = ref(null)
 const itemCodeInput = ref(null)
 const quantityInput = ref(null)
+const observationInput = ref(null)
 
 const customers = ref([])
 const items = ref([])
@@ -345,6 +360,7 @@ const selectItem = (item) => {
   itemSearchText.value = `${item.code} - ${item.name}`
   openSuggestions.value = false
   quantity.value = 1
+  observation.value = ''
   nextTick(() => quantityInput.value?.focus())
 }
 
@@ -357,16 +373,18 @@ const selectFirstSuggestion = () => {
 const addItemToCart = () => {
   if (!selectedItem.value || quantity.value < 1) return
 
-  const existing = cartItems.value.find((item) => item.code === selectedItem.value.code)
+  const note = observation.value.trim()
+  const existing = cartItems.value.find((item) => item.code === selectedItem.value.code && item.observation === note)
   if (existing) {
     existing.quantity += quantity.value
   } else {
-    cartItems.value.push({ ...selectedItem.value, quantity: quantity.value })
+    cartItems.value.push({ ...selectedItem.value, quantity: quantity.value, observation: note })
   }
 
   selectedItem.value = null
   itemSearchText.value = ''
   quantity.value = 1
+  observation.value = ''
   openSuggestions.value = false
   nextTick(() => itemCodeInput.value?.focus())
 }
