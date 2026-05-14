@@ -40,12 +40,12 @@
                 <ul v-if="openCustomerSuggestions && filteredCustomers.length" class="mt-2 max-h-72 overflow-auto rounded-3xl border border-slate-200 bg-white shadow-sm">
                   <li
                     v-for="customer in filteredCustomers"
-                    :key="customer.number"
+                    :key="customer.id"
                     @mousedown.prevent="selectCustomer(customer)"
                     class="cursor-pointer border-b border-slate-200 px-4 py-3 transition hover:bg-emerald-50"
                   >
-                    <p class="font-semibold text-slate-900">{{ customer.name }}</p>
-                    <p class="text-sm text-slate-500">{{ customer.number }}</p>
+                    <p class="font-semibold text-slate-900">{{ customer.nome }}</p>
+                    <p class="text-sm text-slate-500">{{ customer.codigo_cliente }}</p>
                   </li>
                 </ul>
               </div>
@@ -86,14 +86,14 @@
               <ul v-if="openSuggestions && filteredItems.length" class="max-h-72 overflow-auto rounded-3xl border border-slate-200 bg-white shadow-sm sm:max-h-56">
                 <li
                   v-for="item in filteredItems"
-                  :key="item.code"
+                  :key="item.id"
                   @click="selectItem(item)"
                   class="cursor-pointer border-b border-slate-200 px-4 py-3 transition hover:bg-emerald-50"
                 >
                   <div class="flex items-center justify-between gap-4">
                     <div>
-                      <p class="font-semibold text-slate-900">{{ item.code }} — {{ item.name }}</p>
-                      <p class="text-sm text-slate-500">{{ item.unit }} • {{ formatCurrency(item.price) }} / unidade</p>
+                      <p class="font-semibold text-slate-900">{{ item.codigo_produto }} — {{ item.nome }}</p>
+                      <p class="text-sm text-slate-500">R$ {{ formatCurrency(item.preco_unitario) }} / unidade</p>
                     </div>
                     <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-900">Selecionar</span>
                   </div>
@@ -102,8 +102,8 @@
 
               <div v-if="selectedItem" class="rounded-3xl border border-slate-200 bg-slate-50 p-4">
                 <p class="text-sm text-slate-500">Item selecionado</p>
-                <p class="mt-2 text-lg font-semibold text-slate-900">{{ selectedItem.code }} — {{ selectedItem.name }}</p>
-                <p class="text-sm text-slate-600">Preço: {{ formatCurrency(selectedItem.price) }} / {{ selectedItem.unit }}</p>
+                <p class="mt-2 text-lg font-semibold text-slate-900">{{ selectedItem.codigo_produto }} — {{ selectedItem.nome }}</p>
+                <p class="text-sm text-slate-600">Preço: {{ formatCurrency(selectedItem.preco_unitario) }} / unidade</p>
               </div>
 
               <div v-if="selectedItem" class="grid gap-4 sm:grid-cols-[1.2fr_auto]">
@@ -122,7 +122,8 @@
                       @keydown.enter.prevent="handleQuantityEnter"
                       ref="quantityInput"
                       type="number"
-                      min="1"
+                      min="0.1"
+                      step="0.1"
                       class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-200"
                     />
                     <button
@@ -175,16 +176,16 @@
             <div class="mt-4 space-y-4">
               <article
                 v-for="(item, index) in cartItems"
-                :key="item.code"
+                :key="item.id"
                 class="rounded-3xl border border-slate-200 bg-slate-50 p-4 shadow-sm sm:flex sm:items-center sm:justify-between"
               >
                 <div>
-                  <p class="font-semibold text-slate-900">{{ item.code }} — {{ item.name }}</p>
-                  <p class="mt-1 text-sm text-slate-600">{{ item.quantity }} x {{ formatCurrency(item.price) }} / {{ item.unit }}</p>
+                  <p class="font-semibold text-slate-900">{{ item.codigo_produto }} — {{ item.nome }}</p>
+                  <p class="mt-1 text-sm text-slate-600">{{ item.quantity }} x {{ formatCurrency(item.preco_unitario) }} / unidade</p>
                   <p v-if="item.observation" class="mt-2 rounded-2xl bg-white/90 px-3 py-2 text-sm text-slate-700">Observação: {{ item.observation }}</p>
                 </div>
                 <div class="mt-4 flex items-center gap-3 sm:mt-0">
-                  <p class="text-lg font-semibold text-emerald-900">{{ formatCurrency(item.price * item.quantity) }}</p>
+                  <p class="text-lg font-semibold text-emerald-900">{{ formatCurrency(item.preco_unitario * item.quantity) }}</p>
                   <button
                     @click="removeItem(index)"
                     class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
@@ -206,10 +207,10 @@
               </div>
               <button
                 @click="finalizeOrder"
-                :disabled="cartItems.length === 0 || !customerName"
+                :disabled="cartItems.length === 0 || !customerName || loading"
                 class="mt-4 inline-flex h-14 w-full items-center justify-center rounded-2xl bg-emerald-700 px-6 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-emerald-300 sm:mt-0 sm:w-auto"
               >
-                Finalizar lançamento
+                {{ loading ? 'Enviando...' : 'Finalizar lançamento' }}
               </button>
             </div>
           </section>
@@ -240,17 +241,16 @@
 import { computed, nextTick, ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import SideMenu from '../components/SideMenu.vue'
-import { useLocalStorage } from '../utils/localStorage.js'
+import { getClientes, getProdutos, enviarPedido, roundNumber } from '../utils/api.js'
 
 const router = useRouter()
-const { getItems, getCustomers, getOrders, saveOrders, generateOrderId } = useLocalStorage()
 
 const customerSearch = ref('')
 const customerName = ref('')
 const selectedCustomerNumber = ref('')
 const openCustomerSuggestions = ref(false)
 const itemSearchText = ref('')
-const quantity = ref(1)
+const quantity = ref(1.0) // Permitir decimais
 const observation = ref('')
 const cartItems = ref([])
 const selectedItem = ref(null)
@@ -262,14 +262,21 @@ const observationInput = ref(null)
 
 const customers = ref([])
 const items = ref([])
-const orders = ref([])
+const loading = ref(false)
 
 const editingOrderId = ref(null)
 
-onMounted(() => {
-  customers.value = getCustomers()
-  items.value = getItems()
-  orders.value = getOrders()
+onMounted(async () => {
+  loading.value = true
+  try {
+    customers.value = await getClientes()
+    items.value = await getProdutos()
+  } catch (error) {
+    console.error('Erro ao carregar dados:', error)
+    alert('Erro ao carregar dados. Verifique sua conexão.')
+  } finally {
+    loading.value = false
+  }
 
   // Verificar se há pedido para editar
   const editOrderData = sessionStorage.getItem('editOrder')
@@ -277,7 +284,11 @@ onMounted(() => {
     const order = JSON.parse(editOrderData)
     customerSearch.value = order.customerNumber
     customerName.value = order.customerName
-    cartItems.value = order.items
+    // Arredondar todas as quantidades ao carregar
+    cartItems.value = order.items.map(item => ({
+      ...item,
+      quantity: roundNumber(item.quantity, 2)
+    }))
     editingOrderId.value = order.id
     sessionStorage.removeItem('editOrder')
   }
@@ -295,8 +306,8 @@ const filteredItems = computed(() => {
   if (!term) return []
   return items.value.filter((item) => {
     return (
-      item.code.toLowerCase().includes(term) ||
-      item.name.toLowerCase().includes(term)
+      item.codigo_produto.toLowerCase().includes(term) ||
+      item.nome.toLowerCase().includes(term)
     )
   })
 })
@@ -307,9 +318,9 @@ const filteredCustomers = computed(() => {
 
   const digitTerm = term.replace(/\D/g, '')
   return customers.value.filter((customer) => {
-    const normalizedNumber = customer.number.replace(/\D/g, '')
+    const normalizedNumber = customer.codigo_cliente.replace(/\D/g, '')
     const matchesNumber = digitTerm.length > 0 && normalizedNumber.includes(digitTerm)
-    const matchesName = customer.name.toLowerCase().includes(term)
+    const matchesName = customer.nome.toLowerCase().includes(term)
     return matchesNumber || matchesName
   })
 })
@@ -331,14 +342,14 @@ const searchCustomer = () => {
   const term = clean.toLowerCase()
   const found = customers.value.find((customer) => {
     return (
-      customer.number === clean ||
-      customer.name.toLowerCase().includes(term)
+      customer.codigo_cliente === clean ||
+      customer.nome.toLowerCase().includes(term)
     )
   })
 
   if (found) {
-    customerName.value = found.name
-    selectedCustomerNumber.value = found.number
+    customerName.value = found.nome
+    selectedCustomerNumber.value = found.codigo_cliente
   } else {
     customerName.value = ''
     selectedCustomerNumber.value = ''
@@ -348,18 +359,18 @@ const searchCustomer = () => {
 }
 
 const selectCustomer = (customer) => {
-  customerSearch.value = customer.name
-  customerName.value = customer.name
-  selectedCustomerNumber.value = customer.number
+  customerSearch.value = customer.nome
+  customerName.value = customer.nome
+  selectedCustomerNumber.value = customer.codigo_cliente
   openCustomerSuggestions.value = false
   nextTick(() => itemCodeInput.value?.focus())
 }
 
 const selectItem = (item) => {
   selectedItem.value = reactive({ ...item })
-  itemSearchText.value = `${item.code} - ${item.name}`
+  itemSearchText.value = `${item.codigo_produto} - ${item.nome}`
   openSuggestions.value = false
-  quantity.value = 1
+  quantity.value = 1.0
   observation.value = ''
   nextTick(() => quantityInput.value?.focus())
 }
@@ -371,19 +382,20 @@ const selectFirstSuggestion = () => {
 }
 
 const addItemToCart = () => {
-  if (!selectedItem.value || quantity.value < 1) return
+  if (!selectedItem.value || quantity.value < 0.1) return
 
   const note = observation.value.trim()
-  const existing = cartItems.value.find((item) => item.code === selectedItem.value.code && item.observation === note)
+  const roundedQty = roundNumber(quantity.value, 2)
+  const existing = cartItems.value.find((item) => item.codigo_produto === selectedItem.value.codigo_produto && item.observation === note)
   if (existing) {
-    existing.quantity += quantity.value
+    existing.quantity = roundNumber(existing.quantity + roundedQty, 2)
   } else {
-    cartItems.value.push({ ...selectedItem.value, quantity: quantity.value, observation: note })
+    cartItems.value.push({ ...selectedItem.value, quantity: roundedQty, observation: note })
   }
 
   selectedItem.value = null
   itemSearchText.value = ''
-  quantity.value = 1
+  quantity.value = 1.0
   observation.value = ''
   openSuggestions.value = false
   nextTick(() => itemCodeInput.value?.focus())
@@ -397,44 +409,37 @@ const clearCart = () => {
   cartItems.value = []
 }
 
-const finalizeOrder = () => {
+const finalizeOrder = async () => {
   if (!customerName.value || cartItems.value.length === 0) return
 
-  const order = {
-    id: editingOrderId.value || generateOrderId(),
-    customerNumber: selectedCustomerNumber.value || customerSearch.value.trim(),
+  loading.value = true
+
+  const result = await enviarPedido({
+    customerNumber: selectedCustomerNumber.value,
     customerName: customerName.value,
-    items: [...cartItems.value],
-    subtotal: cartSubtotal.value,
-    date: new Date().toISOString()
-  }
+    items: cartItems.value,
+    subtotal: cartSubtotal.value
+  })
 
-  if (editingOrderId.value) {
-    // Atualizar pedido existente
-    const index = orders.value.findIndex(o => o.id === editingOrderId.value)
-    if (index >= 0) {
-      orders.value[index] = order
-    }
+  loading.value = false
+
+  if (result.success) {
+    alert(`Pedido enviado com sucesso! ID: ${result.data.pedido_id}`)
+    clearCart()
+    customerSearch.value = ''
+    customerName.value = ''
+    selectedCustomerNumber.value = ''
   } else {
-    // Novo pedido
-    orders.value.push(order)
+    alert(`Erro ao enviar pedido: ${result.error}`)
   }
-
-  saveOrders(orders.value)
-
-  alert(`Pedido ${editingOrderId.value ? 'atualizado' : 'finalizado'} para ${customerName.value} com ${cartItems.value.length} itens. Número: ${order.id}`)
-  clearCart()
-  customerSearch.value = ''
-  customerName.value = ''
-  editingOrderId.value = null
 }
 
 const increaseQuantity = () => {
-  quantity.value = Math.max(1, quantity.value + 1)
+  quantity.value = roundNumber(Math.max(0.1, quantity.value + 0.1), 2)
 }
 
 const decreaseQuantity = () => {
-  quantity.value = Math.max(1, quantity.value - 1)
+  quantity.value = roundNumber(Math.max(0.1, quantity.value - 0.1), 2)
 }
 
 const handleQuantityEnter = () => {
@@ -442,7 +447,8 @@ const handleQuantityEnter = () => {
 }
 
 const cartSubtotal = computed(() => {
-  return cartItems.value.reduce((sum, item) => sum + item.price * item.quantity, 0)
+  const total = cartItems.value.reduce((sum, item) => sum + item.preco_unitario * item.quantity, 0)
+  return roundNumber(total, 2)
 })
 
 const totalQuantity = computed(() => {
@@ -450,7 +456,7 @@ const totalQuantity = computed(() => {
 })
 
 const canAddItem = computed(() => {
-  return selectedItem.value !== null && quantity.value >= 1
+  return selectedItem.value !== null && quantity.value >= 0.1
 })
 
 const formatCurrency = (value) => {

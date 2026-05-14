@@ -39,7 +39,11 @@
             <textarea v-model="item.notes" rows="4" class="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200" placeholder="Observações ou instruções adicionais"></textarea>
           </label>
 
-          <button @click.prevent="saveItem" class="rounded-2xl bg-emerald-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800">Salvar item</button>
+          <button @click.prevent="saveItem" :disabled="loading" class="rounded-2xl bg-emerald-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:bg-emerald-500 disabled:cursor-not-allowed">
+            {{ loading ? 'Salvando...' : (editingIndex !== null ? 'Atualizar item' : 'Salvar item') }}
+          </button>
+          <p v-if="duplicateMessage" class="mt-3 rounded-2xl bg-rose-50 p-3 text-sm text-rose-700">{{ duplicateMessage }}</p>
+          <p v-if="successMessage" class="mt-3 rounded-2xl bg-green-50 p-3 text-sm text-green-700">{{ successMessage }}</p>
         </form>
       </div>
 
@@ -52,7 +56,11 @@
           <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-900">{{ items.length }}</span>
         </div>
 
-        <div v-if="items.length === 0" class="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-center text-sm text-slate-500">
+        <div v-if="loading" class="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-center text-sm text-slate-500">
+          Carregando produtos...
+        </div>
+
+        <div v-else-if="items.length === 0" class="rounded-3xl border border-slate-200 bg-slate-50 p-5 text-center text-sm text-slate-500">
           Nenhum item cadastrado ainda.
         </div>
 
@@ -75,56 +83,139 @@
 </template>
 
 <script setup>
-import { reactive, onMounted } from 'vue'
+import { reactive, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import SideMenu from '../components/SideMenu.vue'
-import { useLocalStorage } from '../utils/localStorage.js'
+import { getProdutos, createProduto, updateProduto, deleteProduto } from '../utils/api.js'
 
 const router = useRouter()
-const { getItems, saveItems } = useLocalStorage()
 const items = reactive([])
+const editingIndex = ref(null)
+const duplicateMessage = ref('')
+const successMessage = ref('')
+const loading = ref(false)
 
-onMounted(() => {
-  Object.assign(items, getItems())
+onMounted(async () => {
+  await loadProdutos()
+
+  // Verificar se há um item para editar vindo da lista
   const editItemData = sessionStorage.getItem('editItem')
   if (editItemData) {
     const itemToEdit = JSON.parse(editItemData)
     Object.assign(item, itemToEdit)
+    editingIndex.value = items.findIndex(i => i.id === itemToEdit.id)
     sessionStorage.removeItem('editItem')
   }
 })
 
 const item = reactive({ code: '', name: '', price: 0, unit: 'KG', notes: '' })
 
-const saveItem = () => {
-  if (!item.code || !item.name || item.price <= 0) return
+const loadProdutos = async () => {
+  loading.value = true
+  const produtos = await getProdutos()
+  items.splice(0, items.length, ...produtos.map(p => ({
+    id: p.id,
+    code: p.codigo_produto,
+    name: p.nome,
+    price: p.preco_unitario,
+    unit: p.unidade_medida,
+    notes: p.observacao || ''
+  })))
+  loading.value = false
+}
 
-  const existingIndex = items.findIndex(i => i.code === item.code)
-  if (existingIndex >= 0) {
-    items[existingIndex] = { ...item }
-  } else {
-    items.push({ ...item })
+const saveItem = async () => {
+  duplicateMessage.value = ''
+  successMessage.value = ''
+  loading.value = true
+
+  // Validação básica
+  if (!item.code.trim()) {
+    duplicateMessage.value = 'Código é obrigatório.'
+    loading.value = false
+    return
   }
 
-  saveItems(items)
-  Object.assign(item, { code: '', name: '', price: 0, unit: 'KG', notes: '' })
+  if (!item.name.trim()) {
+    duplicateMessage.value = 'Nome é obrigatório.'
+    loading.value = false
+    return
+  }
+
+  if (item.price <= 0) {
+    duplicateMessage.value = 'Preço deve ser maior que zero.'
+    loading.value = false
+    return
+  }
+
+  try {
+    let result
+    if (editingIndex.value !== null) {
+      // Atualizar produto existente
+      const produtoId = items[editingIndex.value].id
+      result = await updateProduto(produtoId, item)
+      if (result.success) {
+        successMessage.value = 'Produto atualizado com sucesso!'
+        await loadProdutos() // Recarregar lista
+      } else {
+        duplicateMessage.value = result.error
+      }
+    } else {
+      // Criar novo produto
+      result = await createProduto(item)
+      if (result.success) {
+        successMessage.value = 'Produto cadastrado com sucesso!'
+        await loadProdutos() // Recarregar lista
+      } else {
+        duplicateMessage.value = result.error
+      }
+    }
+
+    if (result.success) {
+      // Limpar formulário
+      Object.assign(item, { code: '', name: '', price: 0, unit: 'KG', notes: '' })
+      editingIndex.value = null
+
+      // Limpar mensagem de sucesso após 3 segundos
+      setTimeout(() => {
+        successMessage.value = ''
+      }, 3000)
+    }
+  } catch (error) {
+    duplicateMessage.value = 'Erro inesperado: ' + error.message
+  }
+
+  loading.value = false
 }
 
 const editItem = (savedItem) => {
+  editingIndex.value = items.findIndex(i => i.id === savedItem.id)
   Object.assign(item, { ...savedItem })
+  duplicateMessage.value = ''
+  successMessage.value = ''
+  window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
-const deleteItem = (index) => {
-  if (!confirm('Deseja excluir este item?')) return
-  items.splice(index, 1)
-  saveItems(items)
+const deleteItem = async (index) => {
+  const selectedItem = items[index]
+  if (!confirm(`Deseja excluir o produto "${selectedItem.name}"?`)) return
+
+  loading.value = true
+  const result = await deleteProduto(selectedItem.id)
+  loading.value = false
+
+  if (result.success) {
+    await loadProdutos() // Recarregar lista
+    successMessage.value = 'Produto deletado com sucesso!'
+    setTimeout(() => {
+      successMessage.value = ''
+    }, 3000)
+  } else {
+    duplicateMessage.value = result.error
+  }
 }
 
 const formatCurrency = (value) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
-}
-
-const logout = () => {
-  router.push('/')
 }
 </script>

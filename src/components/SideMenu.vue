@@ -45,6 +45,11 @@
       </nav>
 
       <div class="mt-auto px-4 py-4">
+        <div class="mb-3 rounded-2xl bg-slate-50 p-3">
+          <p class="text-xs font-medium text-slate-600 uppercase tracking-wide">Usuário</p>
+          <p class="text-sm font-semibold text-slate-900">{{ userName }}</p>
+          <p class="text-xs text-slate-500">{{ isAdmin ? 'Administrador' : 'Usuário comum' }}</p>
+        </div>
         <button
           @click="handleLogout"
           class="flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
@@ -87,6 +92,11 @@
           </nav>
 
           <div class="mt-auto pt-4 border-t border-slate-200">
+            <div class="mb-3 rounded-2xl bg-slate-50 p-3">
+              <p class="text-xs font-medium text-slate-600 uppercase tracking-wide">Usuário</p>
+              <p class="text-sm font-semibold text-slate-900">{{ userName }}</p>
+              <p class="text-xs text-slate-500">{{ isAdmin ? 'Administrador' : 'Usuário comum' }}</p>
+            </div>
             <button
               @click="handleLogout"
               class="flex w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
@@ -102,17 +112,21 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
 const menuOpen = ref(false)
+
+const userName = computed(() => localStorage.getItem('user-name') || 'Usuário')
+const isAdmin = computed(() => localStorage.getItem('serrao-is-admin') === 'true')
 
 const menuItems = [
   { label: 'Lançamento', path: '/lancamento', icon: '🧾' },
   { label: 'Cadastrar Item', path: '/item-cadastro', icon: '📦' },
   { label: 'Lista de Itens', path: '/itens', icon: '📋' },
   { label: 'Cadastrar Cliente', path: '/cliente-cadastro', icon: '👤' },
+  { label: 'Cadastrar Usuário', path: '/usuario-cadastro', icon: '👥' },
   { label: 'Conferência', path: '/conference', icon: '✅' },
 ]
 
@@ -132,6 +146,13 @@ const navigate = (path) => {
 
 const handleLogout = () => {
   closeMenu()
+  // Limpar localStorage
+  localStorage.removeItem('token')
+  localStorage.removeItem('serrao-auth')
+  localStorage.removeItem('serrao-is-admin')
+  localStorage.removeItem('user-name')
+  localStorage.removeItem('serrao-users')
+  // Redirecionar para login
   router.push('/')
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }

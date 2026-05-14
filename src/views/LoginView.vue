@@ -9,7 +9,9 @@
         <label class="block text-sm font-medium text-slate-700">Senha</label>
         <input v-model="password" type="password" placeholder="Senha" class="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200" />
 
-        <button @click="handleLogin" class="w-full rounded-2xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800">Entrar</button>
+        <button @click="handleLogin" :disabled="loading" class="w-full rounded-2xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:bg-emerald-500 disabled:cursor-not-allowed">
+          {{ loading ? 'Entrando...' : 'Entrar' }}
+        </button>
         <p v-if="error" class="mt-4 text-sm font-medium text-red-600">{{ error }}</p>
       </div>
     </div>
@@ -19,25 +21,34 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { setAuthenticated } from '../router.js'
+import { login } from '../utils/api.js'
 
 const router = useRouter()
 const username = ref('')
 const password = ref('')
 const error = ref('')
+const loading = ref(false)
 
-const handleLogin = () => {
-  const validUsername = 'serrao'
-  const validPassword = '123456'
-
-  if (username.value === validUsername && password.value === validPassword) {
-    setAuthenticated(true)
-    error.value = ''
-    router.push('/lancamento')
+const handleLogin = async () => {
+  if (!username.value || !password.value) {
+    error.value = 'Por favor, preencha usuário e senha.'
     return
   }
 
-  setAuthenticated(false)
-  error.value = 'Usuário ou senha inválidos. Tente novamente.'
+  loading.value = true
+  error.value = ''
+
+  const result = await login({
+    login: username.value,
+    senha: password.value
+  })
+
+  loading.value = false
+
+  if (result.success) {
+    router.push('/lancamento')
+  } else {
+    error.value = result.error
+  }
 }
 </script>
