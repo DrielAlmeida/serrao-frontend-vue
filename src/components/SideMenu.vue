@@ -3,7 +3,9 @@
     <div class="lg:hidden bg-white shadow-sm border-b border-slate-200">
       <div class="flex items-center justify-between px-4 py-4">
         <div class="flex items-center gap-3">
-          <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-700 text-lg font-bold text-white">B</div>
+          <div class="logo-shell">
+            <img :src="logoImage" alt="Logo Serrão Alimentos" class="logo-image" />
+          </div>
           <div>
             <p class="text-base font-semibold text-emerald-900">Serrão</p>
             <p class="text-xs uppercase tracking-[0.3em] text-emerald-700">Painel</p>
@@ -23,7 +25,9 @@
     <aside class="hidden lg:flex lg:flex-col lg:w-72 lg:shrink-0 lg:bg-white/95 lg:border-r lg:border-slate-200 lg:shadow-sm lg:transition-all lg:duration-300">
       <div class="flex items-center justify-between px-4 py-4">
         <div class="flex items-center gap-3">
-          <div class="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-700 text-lg font-bold text-white">B</div>
+          <div class="logo-shell">
+            <img :src="logoImage" alt="Logo Serrão Alimentos" class="logo-image" />
+          </div>
           <div>
             <p class="text-base font-semibold text-emerald-900">Serrão</p>
             <p class="text-xs uppercase tracking-[0.3em] text-emerald-700">Painel</p>
@@ -71,9 +75,14 @@
           @click.stop
         >
           <div class="flex items-center justify-between pb-4 border-b border-slate-200">
-            <div>
+            <div class="flex items-center gap-3">
+              <div class="logo-shell logo-shell-sm">
+                <img :src="logoImage" alt="Logo Serrão Alimentos" class="logo-image" />
+              </div>
+              <div>
               <p class="text-base font-semibold text-emerald-900">Serrão Alimentos</p>
               <p class="text-xs uppercase tracking-[0.3em] text-emerald-700">Menu</p>
+              </div>
             </div>
             <button class="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 text-slate-600 hover:bg-slate-100" @click="closeMenu" type="button">✕</button>
           </div>
@@ -114,6 +123,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import logoImage from '../img/logo.png'
 
 const router = useRouter()
 const menuOpen = ref(false)
@@ -151,9 +161,38 @@ const handleLogout = () => {
   localStorage.removeItem('serrao-auth')
   localStorage.removeItem('serrao-is-admin')
   localStorage.removeItem('user-name')
+  localStorage.removeItem('serrao-linked-customer-id')
+  localStorage.removeItem('serrao-linked-customer-code')
+  localStorage.removeItem('serrao-linked-customer-name')
   localStorage.removeItem('serrao-users')
   // Redirecionar para login
   router.push('/')
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 </script>
+
+<style scoped>
+.logo-shell {
+  display: inline-flex;
+  height: 2.75rem;
+  width: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.95rem;
+  border: 1px solid #a7f3d0;
+  background: linear-gradient(150deg, #ecfdf5 0%, #fffbeb 100%);
+  box-shadow: 0 7px 16px rgba(5, 150, 105, 0.14);
+  overflow: hidden;
+}
+
+.logo-shell-sm {
+  height: 2.35rem;
+  width: 2.35rem;
+}
+
+.logo-image {
+  width: 82%;
+  height: auto;
+  object-fit: contain;
+}
+</style>

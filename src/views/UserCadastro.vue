@@ -39,6 +39,25 @@
                 />
               </label>
               <label class="block">
+                <span class="text-sm font-medium text-slate-700">Cliente vinculado</span>
+                <select
+                  v-model.number="user.cliente_id"
+                  class="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                >
+                  <option :value="null">Selecione um cliente</option>
+                  <option
+                    v-for="cliente in clients"
+                    :key="cliente.id"
+                    :value="cliente.id"
+                  >
+                    {{ cliente.codigo_cliente }} - {{ cliente.nome }}
+                  </option>
+                </select>
+              </label>
+            </div>
+
+            <div class="grid gap-4 sm:grid-cols-2">
+              <label class="block">
                 <span class="text-sm font-medium text-slate-700">Senha</span>
                 <input
                   v-model="user.senha"
@@ -47,9 +66,20 @@
                   class="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                 />
               </label>
+              <label class="block">
+                <span class="text-sm font-medium text-slate-700">Tipo de usuário</span>
+                <div class="mt-2 flex items-center gap-3 rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3">
+                  <input
+                    v-model="user.is_admin"
+                    type="checkbox"
+                    class="h-4 w-4 rounded border-slate-300 text-blue-600"
+                  />
+                  <span class="text-sm font-medium text-slate-700">Administrador</span>
+                </div>
+              </label>
             </div>
 
-            <div class="grid gap-4 sm:grid-cols-2">
+            <div>
               <label class="flex items-center gap-3 rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3">
                 <input
                   v-model="user.ativo"
@@ -57,14 +87,6 @@
                   class="h-4 w-4 rounded border-slate-300 text-blue-600"
                 />
                 <span class="text-sm font-medium text-slate-700">Ativo</span>
-              </label>
-              <label class="flex items-center gap-3 rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3">
-                <input
-                  v-model="user.is_admin"
-                  type="checkbox"
-                  class="h-4 w-4 rounded border-slate-300 text-blue-600"
-                />
-                <span class="text-sm font-medium text-slate-700">Administrador</span>
               </label>
             </div>
 
@@ -117,6 +139,7 @@
                   <p class="font-semibold text-blue-900">{{ savedUser.nome }}</p>
                   <p class="mt-1 text-sm text-slate-600">Login: <span class="font-mono">{{ savedUser.login }}</span></p>
                   <p class="mt-1 text-sm text-slate-600">Email: {{ savedUser.email }}</p>
+                  <p class="mt-1 text-sm text-slate-600">Cliente vinculado: {{ getLinkedClientLabel(savedUser) }}</p>
                   <div class="mt-3 flex flex-wrap gap-2">
                     <span
                       v-if="savedUser.ativo"
@@ -170,9 +193,10 @@
 <script setup>
 import { reactive, ref, onMounted } from 'vue'
 import SideMenu from '../components/SideMenu.vue'
-import { getClientes } from '../utils/api.js'
+import { getUsuarios, createUsuario, updateUsuario, deleteUsuario, getClientes } from '../utils/api.js'
 
 const users = reactive([])
+const clients = ref([])
 const editingIndex = ref(null)
 const duplicateMessage = ref('')
 const successMessage = ref('')
@@ -182,19 +206,77 @@ const user = reactive({
   login: '',
   email: '',
   senha: '',
+  cliente_id: null,
   ativo: true,
   is_admin: false
 })
 
+const normalizeCode = (value) => String(value || '').replace(/\W/g, '').toLowerCase()
+
+const getLinkedClientFromUser = (savedUser) => {
+  const userClientId = savedUser.cliente_id ?? savedUser.cliente?.id ?? null
+  const userClientCode = savedUser.codigo_cliente ?? savedUser.cliente?.codigo_cliente ?? null
+
+  const byId = userClientId !== null ? clients.value.find(cliente => cliente.id === userClientId) : null
+  if (byId) {
+    return byId
+  }
+
+  if (userClientCode) {
+    return clients.value.find(cliente => normalizeCode(cliente.codigo_cliente) === normalizeCode(userClientCode))
+  }
+
+  return null
+}
+
+const getLinkedClientLabel = (savedUser) => {
+  const client = getLinkedClientFromUser(savedUser)
+  if (client) {
+    return `${client.codigo_cliente} - ${client.nome}`
+  }
+
+  if (savedUser.cliente?.nome) {
+    return savedUser.cliente.nome
+  }
+
+  return 'Não vinculado'
+}
+
+const getUsersFromResponse = (data) => {
+  if (Array.isArray(data)) {
+    return data
+  }
+
+  if (Array.isArray(data?.usuarios)) {
+    return data.usuarios
+  }
+
+  if (Array.isArray(data?.data)) {
+    return data.data
+  }
+
+  if (Array.isArray(data?.items)) {
+    return data.items
+  }
+
+  return []
+}
+
+const loadUsers = async () => {
+  const data = await getUsuarios()
+  const normalizedUsers = getUsersFromResponse(data)
+  users.splice(0, users.length, ...normalizedUsers)
+}
+
+const loadClients = async () => {
+  const data = await getClientes()
+  clients.value = Array.isArray(data) ? data : []
+}
+
 // Carregar usuários da API ao montar o componente
 onMounted(async () => {
-  // TODO: Substituir por getUsuarios() da API quando estiver disponível
-  // Por enquanto, carrega do localStorage para testes
-  const savedUsers = localStorage.getItem('serrao-users')
-  if (savedUsers) {
-    const parsed = JSON.parse(savedUsers)
-    users.splice(0, users.length, ...parsed)
-  }
+  await loadClients()
+  await loadUsers()
 })
 
 const saveUser = async () => {
@@ -214,6 +296,11 @@ const saveUser = async () => {
 
   if (!user.email.trim()) {
     duplicateMessage.value = 'Email é obrigatório.'
+    return
+  }
+
+  if (user.cliente_id === null) {
+    duplicateMessage.value = 'Cliente vinculado é obrigatório.'
     return
   }
 
@@ -248,23 +335,25 @@ const saveUser = async () => {
   }
 
   try {
-    // TODO: Integrar com API para salvar no backend
-    // const response = await api.post('/hortifruti/usuarios', {...user})
-
     if (editingIndex.value !== null) {
-      // Mantém a senha original se não foi alterada
-      if (!user.senha) {
-        user.senha = users[editingIndex.value].senha
+      const savedUser = users[editingIndex.value]
+      const usuarioId = savedUser.id
+      const result = await updateUsuario(usuarioId, { ...user })
+      if (!result.success) {
+        duplicateMessage.value = result.error
+        return
       }
-      users[editingIndex.value] = { ...user }
+      await loadUsers()
       successMessage.value = 'Usuário atualizado com sucesso!'
     } else {
-      users.push({ ...user })
+      const result = await createUsuario({ ...user })
+      if (!result.success) {
+        duplicateMessage.value = result.error
+        return
+      }
+      await loadUsers()
       successMessage.value = 'Usuário cadastrado com sucesso!'
     }
-
-    // Salvar no localStorage para persistência local
-    localStorage.setItem('serrao-users', JSON.stringify(users))
 
     // Limpar formulário
     Object.assign(user, {
@@ -272,6 +361,7 @@ const saveUser = async () => {
       login: '',
       email: '',
       senha: '',
+      cliente_id: null,
       ativo: true,
       is_admin: false
     })
@@ -289,11 +379,14 @@ const saveUser = async () => {
 const editUser = (index) => {
   editingIndex.value = index
   const selectedUser = users[index]
+  const linkedClient = getLinkedClientFromUser(selectedUser)
+
   Object.assign(user, {
     nome: selectedUser.nome,
     login: selectedUser.login,
     email: selectedUser.email,
     senha: '', // Não preenche a senha por segurança
+    cliente_id: linkedClient?.id ?? selectedUser.cliente_id ?? selectedUser.cliente?.id ?? null,
     ativo: selectedUser.ativo,
     is_admin: selectedUser.is_admin
   })
@@ -309,6 +402,7 @@ const cancelEdit = () => {
     login: '',
     email: '',
     senha: '',
+    cliente_id: null,
     ativo: true,
     is_admin: false
   })
@@ -316,12 +410,17 @@ const cancelEdit = () => {
   successMessage.value = ''
 }
 
-const deleteUser = (index) => {
+const deleteUser = async (index) => {
   const selectedUser = users[index]
   if (!confirm(`Deseja excluir o usuário "${selectedUser.nome}"?`)) return
 
-  users.splice(index, 1)
-  localStorage.setItem('serrao-users', JSON.stringify(users))
+  const result = await deleteUsuario(selectedUser.id)
+  if (!result.success) {
+    duplicateMessage.value = result.error
+    return
+  }
+
+  await loadUsers()
 
   if (editingIndex.value === index) {
     cancelEdit()

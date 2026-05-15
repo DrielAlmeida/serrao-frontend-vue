@@ -35,6 +35,7 @@
                   ref="customerNumberInput"
                   type="text"
                   placeholder="12.345.678 ou Nome do cliente"
+                  :disabled="isCustomerLocked"
                   class="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
                 />
                 <ul v-if="openCustomerSuggestions && filteredCustomers.length" class="mt-2 max-h-72 overflow-auto rounded-3xl border border-slate-200 bg-white shadow-sm">
@@ -51,6 +52,7 @@
               </div>
               <button
                 @click="searchCustomer"
+                :disabled="isCustomerLocked"
                 class="inline-flex h-12 items-center justify-center rounded-2xl bg-emerald-700 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-300"
               >
                 Pesquisar
@@ -58,6 +60,9 @@
             </div>
 
             <div class="mt-4 space-y-2">
+              <p v-if="customerRestrictionMessage" class="rounded-2xl bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                {{ customerRestrictionMessage }}
+              </p>
               <p v-if="customerName" class="rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
                 Cliente encontrado: <span class="font-semibold">{{ customerName }}</span>
               </p>
@@ -241,14 +246,16 @@
 import { computed, nextTick, ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import SideMenu from '../components/SideMenu.vue'
-import { getClientes, getProdutos, enviarPedido, roundNumber } from '../utils/api.js'
+import { getClientes, getProdutos, enviarPedido, updatePedido, roundNumber } from '../utils/api.js'
 
 const router = useRouter()
 
 const customerSearch = ref('')
 const customerName = ref('')
 const selectedCustomerNumber = ref('')
+const selectedCustomerId = ref(null)
 const openCustomerSuggestions = ref(false)
+const openSuggestions = ref(false)
 const itemSearchText = ref('')
 const quantity = ref(1.0) // Permitir decimais
 const observation = ref('')
@@ -265,6 +272,54 @@ const items = ref([])
 const loading = ref(false)
 
 const editingOrderId = ref(null)
+const customerRestrictionMessage = ref('')
+
+const isAdmin = localStorage.getItem('serrao-is-admin') === 'true'
+const linkedCustomerId = localStorage.getItem('serrao-linked-customer-id')
+const linkedCustomerCode = localStorage.getItem('serrao-linked-customer-code')
+const linkedCustomerName = localStorage.getItem('serrao-linked-customer-name')
+const isCustomerLocked = !isAdmin
+
+const normalizeCustomerCode = (value) => String(value || '').replace(/\W/g, '').toLowerCase()
+
+const getLinkedCustomer = () => {
+  const linkedIdAsNumber = linkedCustomerId ? Number(linkedCustomerId) : null
+
+  return customers.value.find((customer) => {
+    if (linkedIdAsNumber !== null && !Number.isNaN(linkedIdAsNumber) && customer.id === linkedIdAsNumber) {
+      return true
+    }
+
+    if (linkedCustomerCode && normalizeCustomerCode(customer.codigo_cliente) === normalizeCustomerCode(linkedCustomerCode)) {
+      return true
+    }
+
+    return false
+  })
+}
+
+const applyCustomerRestriction = () => {
+  if (isAdmin) {
+    customerRestrictionMessage.value = ''
+    return
+  }
+
+  const linkedCustomer = getLinkedCustomer()
+  if (!linkedCustomer) {
+    customers.value = []
+    customerName.value = ''
+    selectedCustomerNumber.value = ''
+    customerRestrictionMessage.value = 'Seu usuário não possui cliente vinculado válido. Contate um administrador.'
+    return
+  }
+
+  customers.value = [linkedCustomer]
+  customerSearch.value = linkedCustomer.nome
+  customerName.value = linkedCustomer.nome
+  selectedCustomerNumber.value = linkedCustomer.codigo_cliente
+  selectedCustomerId.value = linkedCustomer.id
+  customerRestrictionMessage.value = `Lançamento restrito ao cliente vinculado: ${linkedCustomer.codigo_cliente} - ${linkedCustomer.nome}.`
+}
 
 onMounted(async () => {
   loading.value = true
@@ -282,16 +337,24 @@ onMounted(async () => {
   const editOrderData = sessionStorage.getItem('editOrder')
   if (editOrderData) {
     const order = JSON.parse(editOrderData)
-    customerSearch.value = order.customerNumber
+    customerSearch.value = order.customerName || order.customerNumber
     customerName.value = order.customerName
+    selectedCustomerNumber.value = order.customerNumber
+    selectedCustomerId.value = order.cliente_id ?? order.customerId ?? null
     // Arredondar todas as quantidades ao carregar
     cartItems.value = order.items.map(item => ({
       ...item,
+      codigo_produto: item.codigo_produto || item.code,
+      nome: item.nome || item.name,
+      preco_unitario: item.preco_unitario ?? item.price ?? 0,
+      unidade_medida: item.unidade_medida || item.unit || 'UN',
       quantity: roundNumber(item.quantity, 2)
     }))
     editingOrderId.value = order.id
     sessionStorage.removeItem('editOrder')
   }
+
+  applyCustomerRestriction()
 })
 
 const formatCustomerNumber = (value) => {
@@ -326,10 +389,15 @@ const filteredCustomers = computed(() => {
 })
 
 const onCustomerSearchInput = () => {
+  if (isCustomerLocked) {
+    return
+  }
+
   const value = customerSearch.value
   openCustomerSuggestions.value = true
   customerName.value = ''
   selectedCustomerNumber.value = ''
+  selectedCustomerId.value = null
 
   if (/[A-Za-zÀ-ÿ]/.test(value)) {
     return
@@ -338,6 +406,10 @@ const onCustomerSearchInput = () => {
 }
 
 const searchCustomer = () => {
+  if (isCustomerLocked) {
+    return
+  }
+
   const clean = customerSearch.value.trim()
   const term = clean.toLowerCase()
   const found = customers.value.find((customer) => {
@@ -350,18 +422,25 @@ const searchCustomer = () => {
   if (found) {
     customerName.value = found.nome
     selectedCustomerNumber.value = found.codigo_cliente
+    selectedCustomerId.value = found.id
   } else {
     customerName.value = ''
     selectedCustomerNumber.value = ''
+    selectedCustomerId.value = null
   }
 
   openCustomerSuggestions.value = false
 }
 
 const selectCustomer = (customer) => {
+  if (isCustomerLocked) {
+    return
+  }
+
   customerSearch.value = customer.nome
   customerName.value = customer.nome
   selectedCustomerNumber.value = customer.codigo_cliente
+  selectedCustomerId.value = customer.id
   openCustomerSuggestions.value = false
   nextTick(() => itemCodeInput.value?.focus())
 }
@@ -412,25 +491,57 @@ const clearCart = () => {
 const finalizeOrder = async () => {
   if (!customerName.value || cartItems.value.length === 0) return
 
+  if (isCustomerLocked) {
+    const linkedCustomer = getLinkedCustomer()
+    if (!linkedCustomer || normalizeCustomerCode(selectedCustomerNumber.value) !== normalizeCustomerCode(linkedCustomer.codigo_cliente)) {
+      alert('Usuário sem permissão para lançar pedido para este cliente.')
+      return
+    }
+  }
+
   loading.value = true
 
-  const result = await enviarPedido({
+  const resolvedUserId =
+    localStorage.getItem('serrao-user-id') ||
+    localStorage.getItem('usuario_id_logado') ||
+    localStorage.getItem('id_usuario') ||
+    localStorage.getItem('user_id') ||
+    null
+
+  const payload = {
+    userId: resolvedUserId ? Number(resolvedUserId) : null,
+    customerId: selectedCustomerId.value,
     customerNumber: selectedCustomerNumber.value,
     customerName: customerName.value,
     items: cartItems.value,
     subtotal: cartSubtotal.value
-  })
+  }
+
+  const result = editingOrderId.value
+    ? await updatePedido(editingOrderId.value, payload)
+    : await enviarPedido(payload)
 
   loading.value = false
 
   if (result.success) {
-    alert(`Pedido enviado com sucesso! ID: ${result.data.pedido_id}`)
+    const successMessage = editingOrderId.value
+      ? 'Pedido atualizado com sucesso!'
+      : `Pedido enviado com sucesso! ID: ${result.data.pedido_id}`
+
+    alert(successMessage)
     clearCart()
-    customerSearch.value = ''
-    customerName.value = ''
-    selectedCustomerNumber.value = ''
+    if (isCustomerLocked) {
+      applyCustomerRestriction()
+    } else {
+      customerSearch.value = ''
+      customerName.value = ''
+      selectedCustomerNumber.value = ''
+      selectedCustomerId.value = null
+    }
+    editingOrderId.value = null
   } else {
-    alert(`Erro ao enviar pedido: ${result.error}`)
+    const errorPrefix = editingOrderId.value ? 'atualizar' : 'enviar'
+    alert(`Erro ao ${errorPrefix} pedido: ${result.error}`)
   }
 }
 
