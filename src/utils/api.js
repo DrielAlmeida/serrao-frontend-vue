@@ -33,8 +33,15 @@ const getUserIdFromToken = (token) => {
   }
 }
 
+// const api = axios.create({
+//   baseURL: 'http://localhost:8000',
+//   headers: {
+//     'Content-Type': 'application/json'
+//   }
+// })
+
 const api = axios.create({
-  baseURL: 'http://localhost:8000',
+  baseURL: 'https://api-hortifruti.holdingtech.com.br',
   headers: {
     'Content-Type': 'application/json'
   }
