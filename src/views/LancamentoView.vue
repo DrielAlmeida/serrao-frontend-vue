@@ -21,6 +21,17 @@
         </div>
       </header>
 
+      <div
+        v-if="successNotice"
+        class="mb-6 flex items-start gap-3 rounded-3xl border border-emerald-200 bg-gradient-to-r from-emerald-50 via-lime-50 to-emerald-100 px-5 py-4 text-emerald-900 shadow-sm"
+      >
+        <span class="inline-flex h-9 w-9 flex-none items-center justify-center rounded-full bg-emerald-600 text-white">👍</span>
+        <div>
+          <p class="text-sm font-semibold uppercase tracking-[0.12em]">Lançamento concluído</p>
+          <p class="text-sm">{{ successNotice }}</p>
+        </div>
+      </div>
+
       <div class="grid gap-6 lg:grid-cols-[1.8fr_1fr]">
         <div class="space-y-6">
           <section class="rounded-3xl border border-emerald-200 bg-white/95 p-5 shadow-sm">
@@ -35,22 +46,24 @@
                   ref="customerNumberInput"
                   type="text"
                   placeholder="12.345.678 ou Nome do cliente"
+                  :disabled="isCustomerLocked"
                   class="w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
                 />
                 <ul v-if="openCustomerSuggestions && filteredCustomers.length" class="mt-2 max-h-72 overflow-auto rounded-3xl border border-slate-200 bg-white shadow-sm">
                   <li
                     v-for="customer in filteredCustomers"
-                    :key="customer.number"
+                    :key="customer.id"
                     @mousedown.prevent="selectCustomer(customer)"
                     class="cursor-pointer border-b border-slate-200 px-4 py-3 transition hover:bg-emerald-50"
                   >
-                    <p class="font-semibold text-slate-900">{{ customer.name }}</p>
-                    <p class="text-sm text-slate-500">{{ customer.number }}</p>
+                    <p class="font-semibold text-slate-900">{{ customer.nome }}</p>
+                    <p class="text-sm text-slate-500">{{ customer.codigo_cliente }}</p>
                   </li>
                 </ul>
               </div>
               <button
                 @click="searchCustomer"
+                :disabled="isCustomerLocked"
                 class="inline-flex h-12 items-center justify-center rounded-2xl bg-emerald-700 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-300"
               >
                 Pesquisar
@@ -58,6 +71,9 @@
             </div>
 
             <div class="mt-4 space-y-2">
+              <p v-if="customerRestrictionMessage" class="rounded-2xl bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                {{ customerRestrictionMessage }}
+              </p>
               <p v-if="customerName" class="rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
                 Cliente encontrado: <span class="font-semibold">{{ customerName }}</span>
               </p>
@@ -86,14 +102,14 @@
               <ul v-if="openSuggestions && filteredItems.length" class="max-h-72 overflow-auto rounded-3xl border border-slate-200 bg-white shadow-sm sm:max-h-56">
                 <li
                   v-for="item in filteredItems"
-                  :key="item.code"
+                  :key="item.id"
                   @click="selectItem(item)"
                   class="cursor-pointer border-b border-slate-200 px-4 py-3 transition hover:bg-emerald-50"
                 >
                   <div class="flex items-center justify-between gap-4">
                     <div>
-                      <p class="font-semibold text-slate-900">{{ item.code }} — {{ item.name }}</p>
-                      <p class="text-sm text-slate-500">{{ item.unit }} • {{ formatCurrency(item.price) }} / unidade</p>
+                      <p class="font-semibold text-slate-900">{{ item.codigo_produto }} — {{ item.nome }}</p>
+                      <p class="text-sm text-slate-500">R$ {{ formatCurrency(item.preco_unitario) }} / unidade</p>
                     </div>
                     <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-900">Selecionar</span>
                   </div>
@@ -102,8 +118,8 @@
 
               <div v-if="selectedItem" class="rounded-3xl border border-slate-200 bg-slate-50 p-4">
                 <p class="text-sm text-slate-500">Item selecionado</p>
-                <p class="mt-2 text-lg font-semibold text-slate-900">{{ selectedItem.code }} — {{ selectedItem.name }}</p>
-                <p class="text-sm text-slate-600">Preço: {{ formatCurrency(selectedItem.price) }} / {{ selectedItem.unit }}</p>
+                <p class="mt-2 text-lg font-semibold text-slate-900">{{ selectedItem.codigo_produto }} — {{ selectedItem.nome }}</p>
+                <p class="text-sm text-slate-600">Preço: {{ formatCurrency(selectedItem.preco_unitario) }} / unidade</p>
               </div>
 
               <div v-if="selectedItem" class="grid gap-4 sm:grid-cols-[1.2fr_auto]">
@@ -122,7 +138,8 @@
                       @keydown.enter.prevent="handleQuantityEnter"
                       ref="quantityInput"
                       type="number"
-                      min="1"
+                      min="0.1"
+                      step="0.1"
                       class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm outline-none transition focus:border-orange-500 focus:ring-2 focus:ring-orange-200"
                     />
                     <button
@@ -175,22 +192,51 @@
             <div class="mt-4 space-y-4">
               <article
                 v-for="(item, index) in cartItems"
-                :key="item.code"
-                class="rounded-3xl border border-slate-200 bg-slate-50 p-4 shadow-sm sm:flex sm:items-center sm:justify-between"
+                :key="item.id"
+                class="rounded-3xl border border-slate-200 bg-slate-50 p-4 shadow-sm"
               >
-                <div>
-                  <p class="font-semibold text-slate-900">{{ item.code }} — {{ item.name }}</p>
-                  <p class="mt-1 text-sm text-slate-600">{{ item.quantity }} x {{ formatCurrency(item.price) }} / {{ item.unit }}</p>
-                  <p v-if="item.observation" class="mt-2 rounded-2xl bg-white/90 px-3 py-2 text-sm text-slate-700">Observação: {{ item.observation }}</p>
-                </div>
-                <div class="mt-4 flex items-center gap-3 sm:mt-0">
-                  <p class="text-lg font-semibold text-emerald-900">{{ formatCurrency(item.price * item.quantity) }}</p>
-                  <button
-                    @click="removeItem(index)"
-                    class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
-                  >
-                    Remover
-                  </button>
+                <div class="sm:flex sm:items-center sm:justify-between">
+                  <div class="flex-1">
+                    <p class="font-semibold text-slate-900">{{ item.codigo_produto }} — {{ item.nome }}</p>
+                    <p class="mt-1 text-sm text-slate-600">{{ formatCurrency(item.preco_unitario) }} / unidade</p>
+                    <div class="mt-2">
+                      <textarea
+                        v-model="item.observation"
+                        rows="2"
+                        placeholder="Observação (opcional)"
+                        class="w-full rounded-2xl border border-slate-200 bg-white/90 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
+                      />
+                    </div>
+                  </div>
+                  <div class="mt-4 flex flex-wrap items-center gap-3 sm:mt-0">
+                    <div class="flex items-center gap-1">
+                      <button
+                        type="button"
+                        @click="updateCartItemQuantity(index, -0.1)"
+                        class="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-slate-300 bg-slate-100 text-sm font-bold text-slate-700 transition hover:bg-slate-200"
+                      >−</button>
+                      <input
+                        v-model.number="item.quantity"
+                        @change="item.quantity = roundNumber(item.quantity < 0.1 ? 0.1 : item.quantity, 2)"
+                        type="number"
+                        min="0.1"
+                        step="0.1"
+                        class="w-20 rounded-xl border border-slate-300 bg-white px-2 py-1.5 text-center text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
+                      />
+                      <button
+                        type="button"
+                        @click="updateCartItemQuantity(index, 0.1)"
+                        class="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-slate-300 bg-slate-100 text-sm font-bold text-slate-700 transition hover:bg-slate-200"
+                      >+</button>
+                    </div>
+                    <p class="text-lg font-semibold text-emerald-900">{{ formatCurrency(item.preco_unitario * item.quantity) }}</p>
+                    <button
+                      @click="removeItem(index)"
+                      class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
+                    >
+                      Remover
+                    </button>
+                  </div>
                 </div>
               </article>
 
@@ -206,10 +252,10 @@
               </div>
               <button
                 @click="finalizeOrder"
-                :disabled="cartItems.length === 0 || !customerName"
+                :disabled="cartItems.length === 0 || !customerName || loading"
                 class="mt-4 inline-flex h-14 w-full items-center justify-center rounded-2xl bg-emerald-700 px-6 text-sm font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:bg-emerald-300 sm:mt-0 sm:w-auto"
               >
-                Finalizar lançamento
+                {{ loading ? 'Enviando...' : 'Finalizar lançamento' }}
               </button>
             </div>
           </section>
@@ -240,17 +286,18 @@
 import { computed, nextTick, ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import SideMenu from '../components/SideMenu.vue'
-import { useLocalStorage } from '../utils/localStorage.js'
+import { getClientes, getProdutos, enviarPedido, updatePedido, roundNumber } from '../utils/api.js'
 
 const router = useRouter()
-const { getItems, getCustomers, getOrders, saveOrders, generateOrderId } = useLocalStorage()
 
 const customerSearch = ref('')
 const customerName = ref('')
 const selectedCustomerNumber = ref('')
+const selectedCustomerId = ref(null)
 const openCustomerSuggestions = ref(false)
+const openSuggestions = ref(false)
 const itemSearchText = ref('')
-const quantity = ref(1)
+const quantity = ref(1.0) // Permitir decimais
 const observation = ref('')
 const cartItems = ref([])
 const selectedItem = ref(null)
@@ -262,25 +309,93 @@ const observationInput = ref(null)
 
 const customers = ref([])
 const items = ref([])
-const orders = ref([])
+const loading = ref(false)
+const successNotice = ref('')
 
 const editingOrderId = ref(null)
+const customerRestrictionMessage = ref('')
 
-onMounted(() => {
-  customers.value = getCustomers()
-  items.value = getItems()
-  orders.value = getOrders()
+const isAdmin = localStorage.getItem('serrao-is-admin') === 'true'
+const linkedCustomerId = localStorage.getItem('serrao-linked-customer-id')
+const linkedCustomerCode = localStorage.getItem('serrao-linked-customer-code')
+const linkedCustomerName = localStorage.getItem('serrao-linked-customer-name')
+const isCustomerLocked = !isAdmin
+
+const normalizeCustomerCode = (value) => String(value || '').replace(/\W/g, '').toLowerCase()
+
+const getLinkedCustomer = () => {
+  const linkedIdAsNumber = linkedCustomerId ? Number(linkedCustomerId) : null
+
+  return customers.value.find((customer) => {
+    if (linkedIdAsNumber !== null && !Number.isNaN(linkedIdAsNumber) && customer.id === linkedIdAsNumber) {
+      return true
+    }
+
+    if (linkedCustomerCode && normalizeCustomerCode(customer.codigo_cliente) === normalizeCustomerCode(linkedCustomerCode)) {
+      return true
+    }
+
+    return false
+  })
+}
+
+const applyCustomerRestriction = () => {
+  if (isAdmin) {
+    customerRestrictionMessage.value = ''
+    return
+  }
+
+  const linkedCustomer = getLinkedCustomer()
+  if (!linkedCustomer) {
+    customers.value = []
+    customerName.value = ''
+    selectedCustomerNumber.value = ''
+    customerRestrictionMessage.value = 'Seu usuário não possui cliente vinculado válido. Contate um administrador.'
+    return
+  }
+
+  customers.value = [linkedCustomer]
+  customerSearch.value = linkedCustomer.nome
+  customerName.value = linkedCustomer.nome
+  selectedCustomerNumber.value = linkedCustomer.codigo_cliente
+  selectedCustomerId.value = linkedCustomer.id
+  customerRestrictionMessage.value = `Lançamento restrito ao cliente vinculado: ${linkedCustomer.codigo_cliente} - ${linkedCustomer.nome}.`
+}
+
+onMounted(async () => {
+  loading.value = true
+  try {
+    customers.value = await getClientes()
+    items.value = await getProdutos()
+  } catch (error) {
+    console.error('Erro ao carregar dados:', error)
+    alert('Erro ao carregar dados. Verifique sua conexão.')
+  } finally {
+    loading.value = false
+  }
 
   // Verificar se há pedido para editar
   const editOrderData = sessionStorage.getItem('editOrder')
   if (editOrderData) {
     const order = JSON.parse(editOrderData)
-    customerSearch.value = order.customerNumber
+    customerSearch.value = order.customerName || order.customerNumber
     customerName.value = order.customerName
-    cartItems.value = order.items
+    selectedCustomerNumber.value = order.customerNumber
+    selectedCustomerId.value = order.cliente_id ?? order.customerId ?? null
+    // Arredondar todas as quantidades ao carregar
+    cartItems.value = order.items.map(item => ({
+      ...item,
+      codigo_produto: item.codigo_produto || item.code,
+      nome: item.nome || item.name,
+      preco_unitario: item.preco_unitario ?? item.price ?? 0,
+      unidade_medida: item.unidade_medida || item.unit || 'UN',
+      quantity: roundNumber(item.quantity, 2)
+    }))
     editingOrderId.value = order.id
     sessionStorage.removeItem('editOrder')
   }
+
+  applyCustomerRestriction()
 })
 
 const formatCustomerNumber = (value) => {
@@ -295,8 +410,8 @@ const filteredItems = computed(() => {
   if (!term) return []
   return items.value.filter((item) => {
     return (
-      item.code.toLowerCase().includes(term) ||
-      item.name.toLowerCase().includes(term)
+      item.codigo_produto.toLowerCase().includes(term) ||
+      item.nome.toLowerCase().includes(term)
     )
   })
 })
@@ -307,18 +422,23 @@ const filteredCustomers = computed(() => {
 
   const digitTerm = term.replace(/\D/g, '')
   return customers.value.filter((customer) => {
-    const normalizedNumber = customer.number.replace(/\D/g, '')
+    const normalizedNumber = customer.codigo_cliente.replace(/\D/g, '')
     const matchesNumber = digitTerm.length > 0 && normalizedNumber.includes(digitTerm)
-    const matchesName = customer.name.toLowerCase().includes(term)
+    const matchesName = customer.nome.toLowerCase().includes(term)
     return matchesNumber || matchesName
   })
 })
 
 const onCustomerSearchInput = () => {
+  if (isCustomerLocked) {
+    return
+  }
+
   const value = customerSearch.value
   openCustomerSuggestions.value = true
   customerName.value = ''
   selectedCustomerNumber.value = ''
+  selectedCustomerId.value = null
 
   if (/[A-Za-zÀ-ÿ]/.test(value)) {
     return
@@ -327,39 +447,50 @@ const onCustomerSearchInput = () => {
 }
 
 const searchCustomer = () => {
+  if (isCustomerLocked) {
+    return
+  }
+
   const clean = customerSearch.value.trim()
   const term = clean.toLowerCase()
   const found = customers.value.find((customer) => {
     return (
-      customer.number === clean ||
-      customer.name.toLowerCase().includes(term)
+      customer.codigo_cliente === clean ||
+      customer.nome.toLowerCase().includes(term)
     )
   })
 
   if (found) {
-    customerName.value = found.name
-    selectedCustomerNumber.value = found.number
+    customerName.value = found.nome
+    selectedCustomerNumber.value = found.codigo_cliente
+    selectedCustomerId.value = found.id
   } else {
     customerName.value = ''
     selectedCustomerNumber.value = ''
+    selectedCustomerId.value = null
   }
 
   openCustomerSuggestions.value = false
 }
 
 const selectCustomer = (customer) => {
-  customerSearch.value = customer.name
-  customerName.value = customer.name
-  selectedCustomerNumber.value = customer.number
+  if (isCustomerLocked) {
+    return
+  }
+
+  customerSearch.value = customer.nome
+  customerName.value = customer.nome
+  selectedCustomerNumber.value = customer.codigo_cliente
+  selectedCustomerId.value = customer.id
   openCustomerSuggestions.value = false
   nextTick(() => itemCodeInput.value?.focus())
 }
 
 const selectItem = (item) => {
   selectedItem.value = reactive({ ...item })
-  itemSearchText.value = `${item.code} - ${item.name}`
+  itemSearchText.value = `${item.codigo_produto} - ${item.nome}`
   openSuggestions.value = false
-  quantity.value = 1
+  quantity.value = 1.0
   observation.value = ''
   nextTick(() => quantityInput.value?.focus())
 }
@@ -371,19 +502,20 @@ const selectFirstSuggestion = () => {
 }
 
 const addItemToCart = () => {
-  if (!selectedItem.value || quantity.value < 1) return
+  if (!selectedItem.value || quantity.value < 0.1) return
 
   const note = observation.value.trim()
-  const existing = cartItems.value.find((item) => item.code === selectedItem.value.code && item.observation === note)
+  const roundedQty = roundNumber(quantity.value, 2)
+  const existing = cartItems.value.find((item) => item.codigo_produto === selectedItem.value.codigo_produto && item.observation === note)
   if (existing) {
-    existing.quantity += quantity.value
+    existing.quantity = roundNumber(existing.quantity + roundedQty, 2)
   } else {
-    cartItems.value.push({ ...selectedItem.value, quantity: quantity.value, observation: note })
+    cartItems.value.push({ ...selectedItem.value, quantity: roundedQty, observation: note })
   }
 
   selectedItem.value = null
   itemSearchText.value = ''
-  quantity.value = 1
+  quantity.value = 1.0
   observation.value = ''
   openSuggestions.value = false
   nextTick(() => itemCodeInput.value?.focus())
@@ -393,48 +525,82 @@ const removeItem = (index) => {
   cartItems.value.splice(index, 1)
 }
 
+const updateCartItemQuantity = (index, delta) => {
+  const item = cartItems.value[index]
+  const newQty = roundNumber(item.quantity + delta, 2)
+  item.quantity = newQty < 0.1 ? 0.1 : newQty
+}
+
 const clearCart = () => {
   cartItems.value = []
 }
 
-const finalizeOrder = () => {
+const finalizeOrder = async () => {
   if (!customerName.value || cartItems.value.length === 0) return
 
-  const order = {
-    id: editingOrderId.value || generateOrderId(),
-    customerNumber: selectedCustomerNumber.value || customerSearch.value.trim(),
-    customerName: customerName.value,
-    items: [...cartItems.value],
-    subtotal: cartSubtotal.value,
-    date: new Date().toISOString()
-  }
-
-  if (editingOrderId.value) {
-    // Atualizar pedido existente
-    const index = orders.value.findIndex(o => o.id === editingOrderId.value)
-    if (index >= 0) {
-      orders.value[index] = order
+  if (isCustomerLocked) {
+    const linkedCustomer = getLinkedCustomer()
+    if (!linkedCustomer || normalizeCustomerCode(selectedCustomerNumber.value) !== normalizeCustomerCode(linkedCustomer.codigo_cliente)) {
+      alert('Usuário sem permissão para lançar pedido para este cliente.')
+      return
     }
-  } else {
-    // Novo pedido
-    orders.value.push(order)
   }
 
-  saveOrders(orders.value)
+  loading.value = true
 
-  alert(`Pedido ${editingOrderId.value ? 'atualizado' : 'finalizado'} para ${customerName.value} com ${cartItems.value.length} itens. Número: ${order.id}`)
-  clearCart()
-  customerSearch.value = ''
-  customerName.value = ''
-  editingOrderId.value = null
+  const resolvedUserId =
+    localStorage.getItem('serrao-user-id') ||
+    localStorage.getItem('usuario_id_logado') ||
+    localStorage.getItem('id_usuario') ||
+    localStorage.getItem('user_id') ||
+    null
+
+  const payload = {
+    userId: resolvedUserId ? Number(resolvedUserId) : null,
+    customerId: selectedCustomerId.value,
+    customerNumber: selectedCustomerNumber.value,
+    customerName: customerName.value,
+    items: cartItems.value,
+    subtotal: cartSubtotal.value
+  }
+
+  const result = editingOrderId.value
+    ? await updatePedido(editingOrderId.value, payload)
+    : await enviarPedido(payload)
+
+  loading.value = false
+
+  if (result.success) {
+    const successMessage = editingOrderId.value
+      ? 'Pedido atualizado com sucesso!'
+      : `Pedido enviado com sucesso! ID: ${result.data.pedido_id}`
+
+    successNotice.value = successMessage
+    setTimeout(() => {
+      successNotice.value = ''
+    }, 3500)
+    clearCart()
+    if (isCustomerLocked) {
+      applyCustomerRestriction()
+    } else {
+      customerSearch.value = ''
+      customerName.value = ''
+      selectedCustomerNumber.value = ''
+      selectedCustomerId.value = null
+    }
+    editingOrderId.value = null
+  } else {
+    const errorPrefix = editingOrderId.value ? 'atualizar' : 'enviar'
+    alert(`Erro ao ${errorPrefix} pedido: ${result.error}`)
+  }
 }
 
 const increaseQuantity = () => {
-  quantity.value = Math.max(1, quantity.value + 1)
+  quantity.value = roundNumber(Math.max(0.1, quantity.value + 0.1), 2)
 }
 
 const decreaseQuantity = () => {
-  quantity.value = Math.max(1, quantity.value - 1)
+  quantity.value = roundNumber(Math.max(0.1, quantity.value - 0.1), 2)
 }
 
 const handleQuantityEnter = () => {
@@ -442,7 +608,8 @@ const handleQuantityEnter = () => {
 }
 
 const cartSubtotal = computed(() => {
-  return cartItems.value.reduce((sum, item) => sum + item.price * item.quantity, 0)
+  const total = cartItems.value.reduce((sum, item) => sum + item.preco_unitario * item.quantity, 0)
+  return roundNumber(total, 2)
 })
 
 const totalQuantity = computed(() => {
@@ -450,7 +617,7 @@ const totalQuantity = computed(() => {
 })
 
 const canAddItem = computed(() => {
-  return selectedItem.value !== null && quantity.value >= 1
+  return selectedItem.value !== null && quantity.value >= 0.1
 })
 
 const formatCurrency = (value) => {
