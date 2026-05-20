@@ -110,9 +110,16 @@
             <p v-if="duplicateMessage" class="mt-3 rounded-2xl bg-rose-50 p-3 text-sm text-rose-700">
               {{ duplicateMessage }}
             </p>
-            <p v-if="successMessage" class="mt-3 rounded-2xl bg-green-50 p-3 text-sm text-green-700">
-              {{ successMessage }}
-            </p>
+            <div
+              v-if="successMessage"
+              class="mt-3 flex items-start gap-3 rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-lime-50 p-3 text-sm text-emerald-900 shadow-sm"
+            >
+              <span class="inline-flex h-7 w-7 flex-none items-center justify-center rounded-full bg-emerald-600 text-white">👍</span>
+              <div>
+                <p class="font-semibold">Sucesso</p>
+                <p>{{ successMessage }}</p>
+              </div>
+            </div>
           </form>
         </div>
 

@@ -21,6 +21,17 @@
         </div>
       </header>
 
+      <div
+        v-if="successNotice"
+        class="mb-6 flex items-start gap-3 rounded-3xl border border-emerald-200 bg-gradient-to-r from-emerald-50 via-lime-50 to-emerald-100 px-5 py-4 text-emerald-900 shadow-sm"
+      >
+        <span class="inline-flex h-9 w-9 flex-none items-center justify-center rounded-full bg-emerald-600 text-white">👍</span>
+        <div>
+          <p class="text-sm font-semibold uppercase tracking-[0.12em]">Lançamento concluído</p>
+          <p class="text-sm">{{ successNotice }}</p>
+        </div>
+      </div>
+
       <div class="grid gap-6 lg:grid-cols-[1.8fr_1fr]">
         <div class="space-y-6">
           <section class="rounded-3xl border border-emerald-200 bg-white/95 p-5 shadow-sm">
@@ -299,6 +310,7 @@ const observationInput = ref(null)
 const customers = ref([])
 const items = ref([])
 const loading = ref(false)
+const successNotice = ref('')
 
 const editingOrderId = ref(null)
 const customerRestrictionMessage = ref('')
@@ -563,7 +575,10 @@ const finalizeOrder = async () => {
       ? 'Pedido atualizado com sucesso!'
       : `Pedido enviado com sucesso! ID: ${result.data.pedido_id}`
 
-    alert(successMessage)
+    successNotice.value = successMessage
+    setTimeout(() => {
+      successNotice.value = ''
+    }, 3500)
     clearCart()
     if (isCustomerLocked) {
       applyCustomerRestriction()
