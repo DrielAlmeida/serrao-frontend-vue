@@ -38,7 +38,7 @@
                   class="mt-2 w-full rounded-2xl border border-slate-300 bg-slate-50 px-4 py-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                 />
               </label>
-              <label class="block">
+              <label v-if="!user.is_admin" class="block">
                 <span class="text-sm font-medium text-slate-700">Cliente vinculado</span>
                 <select
                   v-model.number="user.cliente_id"
@@ -73,6 +73,7 @@
                     v-model="user.is_admin"
                     type="checkbox"
                     class="h-4 w-4 rounded border-slate-300 text-blue-600"
+                    @change="user.is_admin && (user.cliente_id = null)"
                   />
                   <span class="text-sm font-medium text-slate-700">Administrador</span>
                 </div>
@@ -299,7 +300,7 @@ const saveUser = async () => {
     return
   }
 
-  if (user.cliente_id === null) {
+  if (!user.is_admin && user.cliente_id === null) {
     duplicateMessage.value = 'Cliente vinculado é obrigatório.'
     return
   }

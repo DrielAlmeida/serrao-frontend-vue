@@ -39,13 +39,13 @@ const getUserIdFromToken = (token) => {
 //     'Content-Type': 'application/json'
 //   }
 // })
-
 const api = axios.create({
   baseURL: 'https://api-hortifruti.holdingtech.com.br',
   headers: {
     'Content-Type': 'application/json'
   }
 })
+
 
 // Interceptor para adicionar token se necessário
 api.interceptors.request.use(config => {

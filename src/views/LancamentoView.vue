@@ -182,21 +182,50 @@
               <article
                 v-for="(item, index) in cartItems"
                 :key="item.id"
-                class="rounded-3xl border border-slate-200 bg-slate-50 p-4 shadow-sm sm:flex sm:items-center sm:justify-between"
+                class="rounded-3xl border border-slate-200 bg-slate-50 p-4 shadow-sm"
               >
-                <div>
-                  <p class="font-semibold text-slate-900">{{ item.codigo_produto }} — {{ item.nome }}</p>
-                  <p class="mt-1 text-sm text-slate-600">{{ item.quantity }} x {{ formatCurrency(item.preco_unitario) }} / unidade</p>
-                  <p v-if="item.observation" class="mt-2 rounded-2xl bg-white/90 px-3 py-2 text-sm text-slate-700">Observação: {{ item.observation }}</p>
-                </div>
-                <div class="mt-4 flex items-center gap-3 sm:mt-0">
-                  <p class="text-lg font-semibold text-emerald-900">{{ formatCurrency(item.preco_unitario * item.quantity) }}</p>
-                  <button
-                    @click="removeItem(index)"
-                    class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
-                  >
-                    Remover
-                  </button>
+                <div class="sm:flex sm:items-center sm:justify-between">
+                  <div class="flex-1">
+                    <p class="font-semibold text-slate-900">{{ item.codigo_produto }} — {{ item.nome }}</p>
+                    <p class="mt-1 text-sm text-slate-600">{{ formatCurrency(item.preco_unitario) }} / unidade</p>
+                    <div class="mt-2">
+                      <textarea
+                        v-model="item.observation"
+                        rows="2"
+                        placeholder="Observação (opcional)"
+                        class="w-full rounded-2xl border border-slate-200 bg-white/90 px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
+                      />
+                    </div>
+                  </div>
+                  <div class="mt-4 flex flex-wrap items-center gap-3 sm:mt-0">
+                    <div class="flex items-center gap-1">
+                      <button
+                        type="button"
+                        @click="updateCartItemQuantity(index, -0.1)"
+                        class="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-slate-300 bg-slate-100 text-sm font-bold text-slate-700 transition hover:bg-slate-200"
+                      >−</button>
+                      <input
+                        v-model.number="item.quantity"
+                        @change="item.quantity = roundNumber(item.quantity < 0.1 ? 0.1 : item.quantity, 2)"
+                        type="number"
+                        min="0.1"
+                        step="0.1"
+                        class="w-20 rounded-xl border border-slate-300 bg-white px-2 py-1.5 text-center text-sm outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200"
+                      />
+                      <button
+                        type="button"
+                        @click="updateCartItemQuantity(index, 0.1)"
+                        class="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-slate-300 bg-slate-100 text-sm font-bold text-slate-700 transition hover:bg-slate-200"
+                      >+</button>
+                    </div>
+                    <p class="text-lg font-semibold text-emerald-900">{{ formatCurrency(item.preco_unitario * item.quantity) }}</p>
+                    <button
+                      @click="removeItem(index)"
+                      class="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
+                    >
+                      Remover
+                    </button>
+                  </div>
                 </div>
               </article>
 
@@ -482,6 +511,12 @@ const addItemToCart = () => {
 
 const removeItem = (index) => {
   cartItems.value.splice(index, 1)
+}
+
+const updateCartItemQuantity = (index, delta) => {
+  const item = cartItems.value[index]
+  const newQty = roundNumber(item.quantity + delta, 2)
+  item.quantity = newQty < 0.1 ? 0.1 : newQty
 }
 
 const clearCart = () => {
